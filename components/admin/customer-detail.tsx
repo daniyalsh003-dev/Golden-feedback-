@@ -2,6 +2,7 @@
 
 import {
   markCustomerSmsSentAction,
+  resetCustomerFeedbackAction,
   sendCustomerSmsAction,
   setCustomerSmsPausedAction,
 } from '@/app/admin/actions'
@@ -24,7 +25,9 @@ import {
   MessageSquare,
   Phone,
   Plug,
+  RotateCcw,
   Send,
+  TriangleAlert,
   X,
 } from 'lucide-react'
 import { useEffect, useState, useTransition } from 'react'
@@ -70,6 +73,7 @@ export function CustomerDetailDrawer({
     kind: 'ok' | 'err'
     text: string
   } | null>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
   const [pending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -80,9 +84,11 @@ export function CustomerDetailDrawer({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Clear the transient notice whenever a different customer is shown.
+  // Clear the transient notice + any open confirm dialog when the shown
+  // customer changes.
   useEffect(() => {
     setNotice(null)
+    setConfirmReset(false)
   }, [customer?.id])
 
   function runAction(
@@ -398,7 +404,48 @@ export function CustomerDetailDrawer({
                 </ol>
               )}
             </div>
+
+            {/* ---- Reset this customer's feedback (scoped, non-destructive) ---- */}
+            <div className="mt-6 border-t border-border pt-5">
+              <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <RotateCcw className="size-4 text-gold" />
+                Reset Feedback
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                Clears only this customer&apos;s submitted feedback and 5-star
+                lock so their existing feedback link works again for a new
+                rating. Does not delete the customer or appointment, and
+                doesn&apos;t affect Square, other customers, or SMS automation.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotice(null)
+                  setConfirmReset(true)
+                }}
+                disabled={pending}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-40"
+              >
+                <RotateCcw className="size-3.5" />
+                Reset Feedback
+              </button>
+            </div>
           </>
+        )}
+
+        {confirmReset && customer && (
+          <ResetConfirmDialog
+            customerName={customer.name}
+            pending={pending}
+            onCancel={() => setConfirmReset(false)}
+            onConfirm={() => {
+              setConfirmReset(false)
+              runAction(
+                () => resetCustomerFeedbackAction(customer.id),
+                'Feedback reset — the feedback link is usable again.',
+              )
+            }}
+          />
         )}
       </div>
     </div>
@@ -432,6 +479,82 @@ function ActionButton({
       <Icon className="size-3.5" />
       {children}
     </button>
+  )
+}
+
+function ResetConfirmDialog({
+  customerName,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  customerName: string
+  pending: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="reset-confirm-title"
+      className="absolute inset-0 z-10 flex items-center justify-center p-6"
+    >
+      <button
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onCancel}
+        aria-label="Cancel"
+        disabled={pending}
+      />
+      <div className="animate-in fade-in zoom-in-95 relative w-full max-w-sm rounded-2xl border border-border bg-card p-6 shadow-2xl duration-200">
+        <div className="flex size-11 items-center justify-center rounded-full border border-destructive/40 bg-destructive/10">
+          <TriangleAlert className="size-5 text-destructive" />
+        </div>
+        <h3
+          id="reset-confirm-title"
+          className="mt-4 font-serif text-xl text-foreground"
+        >
+          Reset feedback for {customerName}?
+        </h3>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          This clears this customer&apos;s submitted feedback and 5-star lock so
+          their existing feedback link can be used again. The customer and
+          appointment are kept, and Square, other customers, and SMS automation
+          are untouched. This can&apos;t be undone.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            className="inline-flex flex-1 items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={pending}
+            className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-destructive/50 bg-destructive/15 px-4 py-2.5 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/25 disabled:opacity-40"
+          >
+            {pending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RotateCcw className="size-4" />
+            )}
+            Reset Feedback
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

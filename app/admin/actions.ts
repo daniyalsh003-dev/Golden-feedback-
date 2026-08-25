@@ -40,6 +40,7 @@ import {
 } from '@/lib/time'
 import {
   getResetPreview,
+  resetCustomerFeedback,
   resetGoldenFeedbackData,
 } from '@/lib/reset'
 import {
@@ -435,6 +436,22 @@ export async function resetGoldenFeedbackDataAction(
   const result = await resetGoldenFeedbackData()
   revalidatePath('/admin')
   return result
+}
+
+/**
+ * Reset ONLY one specific customer's submitted feedback state so their existing
+ * feedback link becomes usable again. Scoped to that customer — never deletes
+ * the customer or appointment, never touches Square, other customers, the cron,
+ * or automation config. Returns ok/reason for the drawer notice.
+ */
+export async function resetCustomerFeedbackAction(
+  customerId: string,
+): Promise<{ ok: boolean; reason: string }> {
+  await requireAdmin()
+  const ok = await resetCustomerFeedback(customerId)
+  if (!ok) return { ok: false, reason: 'Customer not found.' }
+  revalidatePath('/admin')
+  return { ok: true, reason: '' }
 }
 
 // ---- Twilio SMS controls (all admin-gated) ----
