@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ExternalLink, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { StarRating } from '@/components/star-rating'
 import {
   ConfirmationMark,
@@ -283,10 +283,11 @@ export function TokenFeedback({
 }
 
 /**
- * Celebratory 5-star confirmation shown BEFORE the Google redirect. It runs a
- * visible 3-second countdown and then opens the SAME server-resolved Google
- * review URL. The button is active immediately; tapping it cancels the
- * countdown and opens Google right away. Redirect fires at most once.
+ * Minimal, premium 5-star success screen. The Google review button is the
+ * focus. There is NO visible countdown and NO status text: after the screen
+ * appears we silently wait 10 seconds and then open the SAME server-resolved
+ * Google review URL. Tapping the button opens it immediately. A ref guard
+ * ensures the redirect/navigation fires at most once.
  */
 function FiveStarReview({
   barberName,
@@ -295,74 +296,45 @@ function FiveStarReview({
   barberName: string | null
   reviewUrl: string
 }) {
-  const [count, setCount] = useState(3)
-  const [redirected, setRedirected] = useState(false)
   const firedRef = useRef(false)
 
   const go = useCallback(() => {
     if (firedRef.current) return
     firedRef.current = true
-    setRedirected(true)
     openGoogleReview(reviewUrl)
   }, [reviewUrl])
 
+  // Silent auto-redirect after exactly 10 seconds (no visible countdown).
   useEffect(() => {
-    if (redirected) return
-    if (count <= 0) {
-      go()
-      return
-    }
-    const t = setTimeout(() => setCount((c) => c - 1), 1000)
+    const t = setTimeout(go, 10_000)
     return () => clearTimeout(t)
-  }, [count, redirected, go])
+  }, [go])
+
+  const reviewName = barberName?.trim() || 'us'
 
   return (
     <section className="animate-in fade-in zoom-in-95 duration-500">
       <LuxuryCard className="text-center">
-        <div className="animate-in zoom-in-50 duration-500">
-          <RatingSummary rating={5} />
-        </div>
-
-        <h2 className="mt-6 text-balance font-serif text-[1.9rem] leading-[1.15] text-foreground sm:text-4xl">
-          We&apos;re so happy you enjoyed your{' '}
-          <span className="bg-gradient-to-b from-gold to-gold-soft bg-clip-text italic text-transparent">
-            experience
-          </span>
-          ! {'\u{1F60D}'}
+        <h2 className="text-balance font-serif text-3xl leading-[1.15] text-foreground sm:text-4xl">
+          One last favor {'\u2764\uFE0F'}
         </h2>
 
-        <p className="mt-5 font-serif text-xl text-foreground animate-in fade-in slide-in-from-bottom-2 duration-700">
-          One last step! {'\u2764\uFE0F'}
-        </p>
-
-        <p className="mx-auto mt-2 max-w-xs text-pretty text-sm leading-relaxed text-muted-foreground">
-          Your 5-star rating hasn&apos;t been posted to Google yet.
-        </p>
-
-        <p className="mx-auto mt-3 max-w-xs text-pretty text-sm leading-relaxed text-muted-foreground">
-          {barberName
-            ? `If you could leave a Google review for ${barberName}, we'd really appreciate it. It really helps support your barber!`
-            : "If you could leave us a Google review, we'd really appreciate it!"}
+        <p className="mx-auto mt-5 max-w-xs text-pretty text-base leading-relaxed text-muted-foreground">
+          Would you leave a Google review for{' '}
+          <span className="font-medium text-foreground">{reviewName}</span>? It
+          would mean a lot to them!
         </p>
 
         <button
           type="button"
           onClick={go}
-          className="mt-7 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-gold to-gold-soft text-base font-semibold text-primary-foreground shadow-[0_0_28px_oklch(0.82_0.13_86_/_38%)] transition-all duration-200 hover:opacity-95 active:scale-[0.98]"
+          className="mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-gold to-gold-soft text-base font-semibold text-primary-foreground shadow-[0_0_28px_oklch(0.82_0.13_86_/_38%)] transition-all duration-200 hover:opacity-95 active:scale-[0.98]"
         >
           <span aria-hidden="true">{'\u2B50'}</span>
-          Leave a Google Review
-          <ExternalLink className="size-4" />
+          {barberName?.trim()
+            ? `Leave ${reviewName} a Review`
+            : 'Leave a Review'}
         </button>
-
-        <p
-          aria-live="polite"
-          className="mt-4 text-sm font-medium text-muted-foreground"
-        >
-          {redirected
-            ? 'Opening Google\u2026'
-            : `Taking you to Google in ${Math.max(count, 1)}\u2026`}
-        </p>
       </LuxuryCard>
     </section>
   )
