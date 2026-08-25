@@ -113,6 +113,13 @@ export const appointment = pgTable('appointment', {
   squareStatus: text('square_status'),
   feedbackToken: text('feedback_token').notNull(),
   feedbackSubmitted: boolean('feedback_submitted').default(false).notNull(),
+  // True once the one-time Google review action for this link has been used —
+  // either the customer tapped the review button or the 6s auto-redirect fired.
+  // Persisted server-side so reopening the link (any browser/device) always
+  // shows the completed/Thank You screen instead of the review request again.
+  googleReviewConsumed: boolean('google_review_consumed')
+    .default(false)
+    .notNull(),
   // Derived, display-safe eligibility status for a future feedback-request SMS.
   smsEligibility: text('sms_eligibility'),
   // True once a feedback-request SMS is confirmed sent (Twilio success) OR the
