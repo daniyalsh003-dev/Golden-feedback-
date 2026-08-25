@@ -284,10 +284,15 @@ export function TokenFeedback({
 
 /**
  * Minimal, premium 5-star success screen. The Google review button is the
- * focus. There is NO visible countdown and NO status text: after the screen
- * appears we silently wait 10 seconds and then open the SAME server-resolved
- * Google review URL. Tapping the button opens it immediately. A ref guard
- * ensures the redirect/navigation fires at most once.
+ * focus. There is NO visible countdown and NO status text.
+ *
+ * Navigation behavior:
+ *  - AUTO redirect: fires exactly ONCE per page visit, 6 seconds after the
+ *    screen appears, opening the SAME server-resolved Google review URL.
+ *  - MANUAL button: ALWAYS functional. Tapping it opens Google immediately and
+ *    cancels the pending auto-redirect (so Google never opens twice). If the
+ *    customer returns to this page, the button still works every time — only
+ *    the automatic redirect is one-time.
  */
 function FiveStarReview({
   barberName,
@@ -296,19 +301,42 @@ function FiveStarReview({
   barberName: string | null
   reviewUrl: string
 }) {
-  const firedRef = useRef(false)
+  // One-time guard + handle for the AUTOMATIC redirect only. The manual button
+  // is intentionally NOT gated by this, so it keeps working on every return.
+  const autoFiredRef = useRef(false)
+  const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const go = useCallback(() => {
-    if (firedRef.current) return
-    firedRef.current = true
+  const cancelAutoRedirect = useCallback(() => {
+    if (autoTimerRef.current) {
+      clearTimeout(autoTimerRef.current)
+      autoTimerRef.current = null
+    }
+    // Mark as done so it can never fire later in this session.
+    autoFiredRef.current = true
+  }, [])
+
+  // Manual click: always opens Google, and cancels any pending auto-redirect.
+  const openManually = useCallback(() => {
+    cancelAutoRedirect()
     openGoogleReview(reviewUrl)
-  }, [reviewUrl])
+  }, [cancelAutoRedirect, reviewUrl])
 
-  // Silent auto-redirect after exactly 10 seconds (no visible countdown).
+  // Silent one-time auto-redirect after exactly 6 seconds (no visible
+  // countdown, no status text).
   useEffect(() => {
-    const t = setTimeout(go, 10_000)
-    return () => clearTimeout(t)
-  }, [go])
+    if (autoFiredRef.current) return
+    autoTimerRef.current = setTimeout(() => {
+      autoFiredRef.current = true
+      autoTimerRef.current = null
+      openGoogleReview(reviewUrl)
+    }, 6_000)
+    return () => {
+      if (autoTimerRef.current) {
+        clearTimeout(autoTimerRef.current)
+        autoTimerRef.current = null
+      }
+    }
+  }, [reviewUrl])
 
   const reviewName = barberName?.trim() || 'us'
 
@@ -327,7 +355,7 @@ function FiveStarReview({
 
         <button
           type="button"
-          onClick={go}
+          onClick={openManually}
           className="mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-gold to-gold-soft text-base font-semibold text-primary-foreground shadow-[0_0_28px_oklch(0.82_0.13_86_/_38%)] transition-all duration-200 hover:opacity-95 active:scale-[0.98]"
         >
           <span aria-hidden="true">{'\u2B50'}</span>
