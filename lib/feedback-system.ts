@@ -228,6 +228,20 @@ export async function getAppointmentByToken(
   .limit(1)
   return row?.rating ?? null
   }
+
+  /**
+   * Mark the one-time Google review action for a feedback link as USED. Called
+   * when the customer taps the review button OR when the 6s auto-redirect
+   * fires (whichever happens first). Persisted server-side so any later reopen
+   * of the link shows the completed/Thank You screen instead of the review
+   * request again. Idempotent — safe to call more than once.
+   */
+  export async function consumeGoogleReview(token: string): Promise<void> {
+  await db
+  .update(appointment)
+  .set({ googleReviewConsumed: true, updatedAt: new Date() })
+  .where(eq(appointment.feedbackToken, token))
+  }
   
   export type TokenSubmitResult =
   | { status: 'ok' }

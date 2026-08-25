@@ -14,7 +14,10 @@ import {
   SubmitButton,
   YesNoToggle,
 } from '@/components/feedback/chrome'
-import { submitTokenFeedbackAction } from '@/app/feedback/[token]/actions'
+import {
+  consumeGoogleReviewAction,
+  submitTokenFeedbackAction,
+} from '@/app/feedback/[token]/actions'
 import { ISSUE_CATEGORIES } from '@/lib/feedback'
 import { cn } from '@/lib/utils'
 
@@ -274,7 +277,11 @@ export function TokenFeedback({
       )}
 
       {step === 'review' && (
-        <FiveStarReview barberName={barberName} reviewUrl={reviewUrl} />
+        <FiveStarReview
+          token={token}
+          barberName={barberName}
+          reviewUrl={reviewUrl}
+        />
       )}
 
       {step === 'already' && <AlreadySubmittedCard />}
@@ -286,49 +293,51 @@ export function TokenFeedback({
  * Minimal, premium 5-star success screen. The Google review button is the
  * focus. There is NO visible countdown and NO status text.
  *
- * Navigation behavior:
- *  - AUTO redirect: fires exactly ONCE per page visit, 6 seconds after the
- *    screen appears, opening the SAME server-resolved Google review URL.
- *  - MANUAL button: ALWAYS functional. Tapping it opens Google immediately and
- *    cancels the pending auto-redirect (so Google never opens twice). If the
- *    customer returns to this page, the button still works every time — only
- *    the automatic redirect is one-time.
+ * One-time review action: the review is "consumed" server-side by whichever
+ * happens FIRST — the customer tapping the button or the 6-second auto-redirect
+ * firing. The consume call is awaited before navigating so it reliably persists
+ * even on same-tab redirects. Once consumed, reopening the link shows the
+ * completed/Thank You screen (see the page's gating), so the review request is
+ * never shown again.
+ *
+ * Within a single page visit, the auto-redirect fires at most once, and a
+ * manual tap cancels the pending auto-redirect so Google never opens twice.
  */
 function FiveStarReview({
+  token,
   barberName,
   reviewUrl,
 }: {
+  token: string
   barberName: string | null
   reviewUrl: string
 }) {
-  // One-time guard + handle for the AUTOMATIC redirect only. The manual button
-  // is intentionally NOT gated by this, so it keeps working on every return.
-  const autoFiredRef = useRef(false)
+  // Guard so the review is opened+consumed at most once per page visit.
+  const firedRef = useRef(false)
   const autoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const cancelAutoRedirect = useCallback(() => {
+  const openAndConsume = useCallback(async () => {
+    if (firedRef.current) return
+    firedRef.current = true
     if (autoTimerRef.current) {
       clearTimeout(autoTimerRef.current)
       autoTimerRef.current = null
     }
-    // Mark as done so it can never fire later in this session.
-    autoFiredRef.current = true
-  }, [])
-
-  // Manual click: always opens Google, and cancels any pending auto-redirect.
-  const openManually = useCallback(() => {
-    cancelAutoRedirect()
+    // Persist the one-time consume BEFORE navigating. Awaited so it survives a
+    // same-tab redirect; guarded so a hiccup never blocks the customer.
+    try {
+      await consumeGoogleReviewAction(token)
+    } catch {
+      // Non-fatal — still send them to Google.
+    }
     openGoogleReview(reviewUrl)
-  }, [cancelAutoRedirect, reviewUrl])
+  }, [token, reviewUrl])
 
   // Silent one-time auto-redirect after exactly 6 seconds (no visible
   // countdown, no status text).
   useEffect(() => {
-    if (autoFiredRef.current) return
     autoTimerRef.current = setTimeout(() => {
-      autoFiredRef.current = true
-      autoTimerRef.current = null
-      openGoogleReview(reviewUrl)
+      void openAndConsume()
     }, 6_000)
     return () => {
       if (autoTimerRef.current) {
@@ -336,7 +345,7 @@ function FiveStarReview({
         autoTimerRef.current = null
       }
     }
-  }, [reviewUrl])
+  }, [openAndConsume])
 
   const reviewName = barberName?.trim() || 'us'
 
@@ -355,7 +364,7 @@ function FiveStarReview({
 
         <button
           type="button"
-          onClick={openManually}
+          onClick={() => void openAndConsume()}
           className="mt-8 inline-flex h-14 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-b from-gold to-gold-soft text-base font-semibold text-primary-foreground shadow-[0_0_28px_oklch(0.82_0.13_86_/_38%)] transition-all duration-200 hover:opacity-95 active:scale-[0.98]"
         >
           <span aria-hidden="true">{'\u2B50'}</span>
@@ -376,15 +385,21 @@ function FiveStarReview({
  * functional on every return visit.
  */
 export function FiveStarReviewScreen({
+  token,
   barberName,
   reviewUrl,
 }: {
+  token: string
   barberName: string | null
   reviewUrl: string
 }) {
   return (
     <FeedbackShell>
-      <FiveStarReview barberName={barberName} reviewUrl={reviewUrl} />
+      <FiveStarReview
+        token={token}
+        barberName={barberName}
+        reviewUrl={reviewUrl}
+      />
     </FeedbackShell>
   )
 }

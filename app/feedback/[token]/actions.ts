@@ -1,6 +1,7 @@
 'use server'
 
 import {
+  consumeGoogleReview,
   submitTokenFeedback,
   type TokenSubmitResult,
 } from '@/lib/feedback-system'
@@ -44,4 +45,20 @@ export async function submitTokenFeedbackAction(
     wantsContact,
     contactInfo,
   })
+}
+
+/**
+ * Mark the one-time Google review action for this link as used. Invoked by the
+ * 5-star screen when the customer taps the review button or when the 6s
+ * auto-redirect fires — whichever comes first. Awaited before navigation so
+ * the consumed state reliably persists.
+ */
+export async function consumeGoogleReviewAction(
+  token: string,
+): Promise<{ ok: boolean }> {
+  if (typeof token !== 'string' || !token.trim()) {
+    return { ok: false }
+  }
+  await consumeGoogleReview(token.trim())
+  return { ok: true }
 }

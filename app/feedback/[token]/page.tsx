@@ -56,10 +56,15 @@ export default async function FeedbackTokenPage({
     const submittedRating = await getSubmittedRatingForAppointment(
       record.appointment.id,
     )
-    if (submittedRating === 5) {
+    // Re-show the review screen ONLY while the one-time review action is still
+    // available. Once it has been consumed (button tapped or 6s auto-redirect
+    // fired), fall through to the completed/Thank You card so the review
+    // request is never shown again.
+    if (submittedRating === 5 && !record.appointment.googleReviewConsumed) {
       const { url: reviewUrl } = await getGoogleReviewUrl()
       return (
         <FiveStarReviewScreen
+          token={token}
           barberName={firstNameFrom(record.appointment.staffMember)}
           reviewUrl={reviewUrl}
         />

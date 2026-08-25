@@ -63,6 +63,7 @@ export async function resetCustomerFeedback(
       .update(appointment)
       .set({
         feedbackSubmitted: false,
+        googleReviewConsumed: false,
         smsSent: false,
         smsSentAt: null,
         smsSendMethod: null,
@@ -130,6 +131,7 @@ export async function resetGoldenFeedbackData(): Promise<ResetResult> {
     // service, history) is preserved.
     await tx.update(appointment).set({
       feedbackSubmitted: false,
+      googleReviewConsumed: false,
       smsSent: false,
       smsSentAt: null,
       smsSendMethod: null,
