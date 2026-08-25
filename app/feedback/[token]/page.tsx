@@ -4,9 +4,13 @@ import {
 } from '@/components/feedback/chrome'
 import {
   AlreadySubmittedCard,
+  FiveStarReviewScreen,
   TokenFeedback,
 } from '@/components/feedback/token-feedback'
-import { getAppointmentByToken } from '@/lib/feedback-system'
+import {
+  getAppointmentByToken,
+  getSubmittedRatingForAppointment,
+} from '@/lib/feedback-system'
 import { getGoogleReviewUrl } from '@/lib/google-review'
 import { firstNameFrom } from '@/lib/sms-message'
 import { formatDateTimeToronto } from '@/lib/time'
@@ -45,6 +49,22 @@ export default async function FeedbackTokenPage({
   }
 
   if (record.appointment.feedbackSubmitted) {
+    // If the submitted rating was 5 stars, a returning visitor should still be
+    // able to leave a Google review — re-show the same 5-star screen (working
+    // button + one-time 6s auto-redirect) instead of the generic card. Any
+    // other rating keeps the generic already-submitted card.
+    const submittedRating = await getSubmittedRatingForAppointment(
+      record.appointment.id,
+    )
+    if (submittedRating === 5) {
+      const { url: reviewUrl } = await getGoogleReviewUrl()
+      return (
+        <FiveStarReviewScreen
+          barberName={firstNameFrom(record.appointment.staffMember)}
+          reviewUrl={reviewUrl}
+        />
+      )
+    }
     return (
       <FeedbackShell>
         <AlreadySubmittedCard />

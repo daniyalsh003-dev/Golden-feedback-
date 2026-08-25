@@ -209,9 +209,27 @@ export async function getAppointmentByToken(
     .limit(1)
 
   return { appointment: apt, customer: cust ?? null }
-}
+  }
 
-export type TokenSubmitResult =
+  /**
+   * Return the rating of the most recent feedback submission for an
+   * appointment, or null if none exists. Used to decide whether a returning
+   * visitor to an already-submitted link should see the 5-star review screen
+   * (rating === 5) again vs. the generic already-submitted card.
+   */
+  export async function getSubmittedRatingForAppointment(
+  appointmentId: string,
+  ): Promise<number | null> {
+  const [row] = await db
+  .select({ rating: feedback.rating })
+  .from(feedback)
+  .where(eq(feedback.appointmentId, appointmentId))
+  .orderBy(desc(feedback.createdAt))
+  .limit(1)
+  return row?.rating ?? null
+  }
+  
+  export type TokenSubmitResult =
   | { status: 'ok' }
   | { status: 'already_submitted' }
   | { status: 'not_found' }

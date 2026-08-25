@@ -368,6 +368,27 @@ function FiveStarReview({
   )
 }
 
+/**
+ * Standalone 5-star review screen for the server page to render when a customer
+ * RETURNS to a feedback link whose submitted rating was 5 stars. It shows the
+ * same FiveStarReview UI (working button + one-time 6s auto-redirect) inside
+ * the feedback shell, so the "Leave [Barber] a Review" button is available and
+ * functional on every return visit.
+ */
+export function FiveStarReviewScreen({
+  barberName,
+  reviewUrl,
+}: {
+  barberName: string | null
+  reviewUrl: string
+}) {
+  return (
+    <FeedbackShell>
+      <FiveStarReview barberName={barberName} reviewUrl={reviewUrl} />
+    </FeedbackShell>
+  )
+}
+
 export function AlreadySubmittedCard() {
   return (
     <section className="animate-in fade-in zoom-in-95 duration-500">
