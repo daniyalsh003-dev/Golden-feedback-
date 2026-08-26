@@ -6,6 +6,8 @@ import type { Appointment, Customer } from '@/lib/db/schema'
 import {
   appointmentSmsEligibility,
   createAppointment,
+  isCancelledStatus,
+  isNoShowStatus,
   upsertCustomer,
 } from '@/lib/feedback-system'
 import { isValidPhone, normalizePhone } from '@/lib/phone'
@@ -363,11 +365,15 @@ export interface AutoSendSummary {
 const AUTO_SEND_MAX_PER_RUN = 25
 
 /**
- * AUTOMATIC send pass, invoked by the existing reconciliation cron. Sends the
- * feedback SMS for appointments whose visit time has passed and that are still
- * eligible — but ONLY when the master auto-send switch is ON. Fully forward-only
- * (these appointments were only captured at/after the activation start point)
- * and duplicate-safe (already-sent appointments are skipped).
+ * AUTOMATIC send pass, invoked by the dedicated lightweight SMS cron
+ * (`/api/cron/send-sms`) every 5 minutes — INDEPENDENT of the heavy Square
+ * reconciliation, so a slow/timed-out Square sync can never block SMS sending.
+ * It only reads the local DB (no Square API calls) and sends the feedback SMS
+ * for appointments whose visit time has passed and that are still eligible —
+ * but ONLY when the master auto-send switch is ON. Fully forward-only (these
+ * appointments were only captured at/after the activation start point) and
+ * duplicate-safe (already-sent, cancelled, and no-show appointments are
+ * skipped).
  */
 export async function autoSendDueFeedbackSms(): Promise<AutoSendSummary> {
   const summary: AutoSendSummary = {
@@ -398,6 +404,9 @@ export async function autoSendDueFeedbackSms(): Promise<AutoSendSummary> {
     if (!cust) continue
     if (apt.smsSent) continue
     if (cust.smsPaused) continue
+    // Never auto-message cancelled/declined or no-show appointments.
+    if (isCancelledStatus(apt.squareStatus)) continue
+    if (isNoShowStatus(apt.squareStatus)) continue
 
     // Visit must be at/after activation (forward-only) and eligibility only
     // opens 1 HOUR AFTER the appointment END time (start + duration + 1h),

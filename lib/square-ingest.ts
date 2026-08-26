@@ -187,28 +187,21 @@ export async function runReconciliation(): Promise<ReconcileResult> {
     else ignored++
   }
 
-  // After capture, run the AUTOMATIC feedback-SMS pass. This is a no-op unless
-  // the master auto-send switch is ON, so connecting Twilio never messages real
-  // customers on its own. Forward-only and duplicate-safe.
-  const { autoSendDueFeedbackSms } = await import('@/lib/sms')
-  const auto = await autoSendDueFeedbackSms()
-  const smsNote = auto.enabled
-    ? ` Auto-SMS: ${auto.sent} sent, ${auto.failed} failed, ${auto.skipped} skipped.`
-    : ' Auto-SMS is OFF.'
-
+  // NOTE: The automatic feedback-SMS pass is intentionally NOT run here. It is
+  // handled by a separate lightweight cron (`/api/cron/send-sms`) that calls
+  // `autoSendDueFeedbackSms()` directly against the local DB. Keeping the two
+  // apart guarantees that a slow or timed-out Square re-pull can never block
+  // eligible SMS from going out.
   await recordReconcileHeartbeat({
     at: ranAt,
     ok: true,
     ingested: bookings.length,
-    autoDue: auto.due,
-    autoSent: auto.sent,
-    autoFailed: auto.failed,
   })
 
   return {
     ok: true,
     ranAt,
-    message: `Reconciled ${bookings.length} booking(s): ${created} new, ${updated} updated.${smsNote}`,
+    message: `Reconciled ${bookings.length} booking(s): ${created} new, ${updated} updated.`,
     fetched: bookings.length,
     created,
     updated,

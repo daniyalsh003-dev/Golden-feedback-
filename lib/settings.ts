@@ -19,6 +19,10 @@ export const SETTING_KEYS = {
   // Durable heartbeat: JSON of the last reconcile cron run (timestamp + result
   // summary). Written on every run so the schedule can be verified from the DB.
   lastReconcile: 'last_reconcile',
+  // Durable heartbeat: JSON of the last dedicated SMS cron run. Written on every
+  // run so the SMS schedule can be verified from the DB independently of the
+  // reconcile heartbeat.
+  lastSmsCron: 'last_sms_cron',
 } as const
 
 export type AutomationStatus = 'active' | 'paused'
@@ -148,6 +152,39 @@ export async function getReconcileHeartbeat(): Promise<ReconcileHeartbeat | null
   if (!raw) return null
   try {
     return JSON.parse(raw) as ReconcileHeartbeat
+  } catch {
+    return null
+  }
+}
+
+export interface SmsCronHeartbeat {
+  at: string
+  ok: boolean
+  enabled?: boolean
+  due?: number
+  sent?: number
+  failed?: number
+  skipped?: number
+  error?: string
+}
+
+/**
+ * Record a durable heartbeat for the dedicated SMS cron. Called on every run
+ * (success or failure) so the SMS schedule is verifiable directly from the DB,
+ * separately from the reconcile heartbeat.
+ */
+export async function recordSmsCronHeartbeat(
+  beat: SmsCronHeartbeat,
+): Promise<void> {
+  await setSetting(SETTING_KEYS.lastSmsCron, JSON.stringify(beat))
+}
+
+/** Read the last SMS cron heartbeat, or null if it has never run. */
+export async function getSmsCronHeartbeat(): Promise<SmsCronHeartbeat | null> {
+  const raw = await getSetting(SETTING_KEYS.lastSmsCron)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as SmsCronHeartbeat
   } catch {
     return null
   }

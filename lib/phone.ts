@@ -11,18 +11,28 @@
  */
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null
+  const hadPlus = raw.trim().startsWith('+')
   const digits = raw.replace(/\D/g, '')
   if (!digits) return null
 
-  let ten = digits
-  // Drop a leading North American country code.
-  if (ten.length === 11 && ten.startsWith('1')) ten = ten.slice(1)
-  // If someone typed extra digits, keep the last 10 (local number).
-  if (ten.length > 11) ten = ten.slice(-10)
+  // Standard North American (NANP) shapes — unchanged behavior:
+  //   "4165551234"        -> +14165551234
+  //   "14165551234"       -> +14165551234
+  //   "+1 416 555 1234"   -> +14165551234
+  //   "(416) 555-1234"    -> +14165551234
+  if (digits.length === 10) return `+1${digits}`
+  if (digits.length === 11 && digits.startsWith('1')) {
+    return `+1${digits.slice(1)}`
+  }
 
-  if (ten.length === 10) return `+1${ten}`
-  // Fall back to a raw international form for non-NANP numbers.
-  if (digits.length >= 8) return `+${digits}`
+  // Explicit international number (typed with a leading "+", country code != 1):
+  // preserve the full E.164 digits AS-IS. Never coerce it into a +1 number.
+  // e.g. "+49 173 8453562" -> +491738453562 (previously mangled to +11738453562).
+  if (hadPlus && digits.length >= 8) return `+${digits}`
+
+  // No leading "+" but too many digits for NANP: best-effort international.
+  if (digits.length >= 11) return `+${digits}`
+
   return null
 }
 
