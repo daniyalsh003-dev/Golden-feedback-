@@ -64,6 +64,7 @@ export async function resetCustomerFeedback(
       .set({
         feedbackSubmitted: false,
         googleReviewConsumed: false,
+        smsAttempted: false,
         smsSent: false,
         smsSentAt: null,
         smsSendMethod: null,

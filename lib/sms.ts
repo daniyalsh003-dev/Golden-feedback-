@@ -403,6 +403,11 @@ export async function autoSendDueFeedbackSms(): Promise<AutoSendSummary> {
   for (const { apt, cust } of rows) {
     if (!cust) continue
     if (apt.smsSent) continue
+    // Exactly ONE automatic attempt per appointment: once the cron has attempted
+    // a Twilio send (any outcome — sent, failed, undelivered, geo/invalid error),
+    // never auto-retry it. This is per-appointment, so a future NEW appointment
+    // for the same customer still gets its own attempt.
+    if (apt.smsAttempted) continue
     if (cust.smsPaused) continue
     // Never auto-message cancelled/declined or no-show appointments.
     if (isCancelledStatus(apt.squareStatus)) continue
@@ -439,6 +444,15 @@ export async function autoSendDueFeedbackSms(): Promise<AutoSendSummary> {
   // (still duplicate-safe: each is only marked sent on a successful send).
   const batch = due.slice(0, AUTO_SEND_MAX_PER_RUN)
   for (const { apt } of batch) {
+    // Mark the appointment as attempted BEFORE calling Twilio. This guarantees
+    // exactly one automatic attempt: whatever Twilio returns (or even if the
+    // call throws), this appointment is never picked up by the cron again.
+    // Only affects the AUTOMATIC path — manual send/resend/test are unaffected.
+    await db
+      .update(appointment)
+      .set({ smsAttempted: true, updatedAt: new Date() })
+      .where(eq(appointment.id, apt.id))
+
     const res = await sendAppointmentFeedbackSms(apt.id, { method: 'auto' })
     if (res.status === 'sent') summary.sent++
     else if (res.status === 'failed') summary.failed++
