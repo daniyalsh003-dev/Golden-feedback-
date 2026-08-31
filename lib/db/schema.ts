@@ -122,6 +122,14 @@ export const appointment = pgTable('appointment', {
     .notNull(),
   // Derived, display-safe eligibility status for a future feedback-request SMS.
   smsEligibility: text('sms_eligibility'),
+  // True once the AUTOMATIC cron has attempted a Twilio send for this
+  // appointment — set BEFORE the Twilio call and regardless of the outcome
+  // (sent, failed, undelivered, geo/invalid-number error, etc.). The cron uses
+  // this to guarantee exactly ONE automatic attempt per appointment and to
+  // never auto-retry. It is per-appointment, so a future NEW appointment for
+  // the same customer still gets its own attempt. Manual send/resend/test are
+  // NOT gated by this flag.
+  smsAttempted: boolean('sms_attempted').default(false).notNull(),
   // True once a feedback-request SMS is confirmed sent (Twilio success) OR the
   // admin manually marks it as sent. A failed Twilio attempt never sets this.
   smsSent: boolean('sms_sent').default(false).notNull(),
