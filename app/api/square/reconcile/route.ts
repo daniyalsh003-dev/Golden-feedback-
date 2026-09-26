@@ -2,11 +2,13 @@ import { runReconciliation } from '@/lib/square-ingest'
 import { recordReconcileHeartbeat } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
+
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 // Runs every 5 minutes via Vercel Cron; allow headroom for the Square re-pull
 // plus the sequential Twilio auto-send pass without timing out.
-export const maxDuration = 60
+export const maxDuration = 300
+
 
 /**
  * Forward-only reconciliation + automatic feedback-SMS pass, triggered every 5
@@ -34,26 +36,3 @@ export async function GET(req: Request) {
     )
   }
 
-  const auth = req.headers.get('authorization')
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 })
-  }
-
-  try {
-    const result = await runReconciliation()
-    return NextResponse.json(result)
-  } catch (err) {
-    // Record a failure heartbeat so a broken run is still visible in the DB.
-    const message = err instanceof Error ? err.message : String(err)
-    await recordReconcileHeartbeat({
-      at: new Date().toISOString(),
-      ok: false,
-      error: message.slice(0, 300),
-    }).catch(() => {})
-    console.log('[v0] reconcile cron failed:', message)
-    return NextResponse.json(
-      { ok: false, error: 'Reconciliation failed.' },
-      { status: 500 },
-    )
-  }
-}
