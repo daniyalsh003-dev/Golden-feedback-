@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/cron/send-sms",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/square/reconcile",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
